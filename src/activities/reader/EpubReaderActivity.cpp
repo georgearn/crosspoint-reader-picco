@@ -727,6 +727,7 @@ void EpubReaderActivity::openFootnoteSelect(const bool reopenMenuOnCancel) {
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
                                    &orientedMarginLeft);
   orientedMarginTop += SETTINGS.screenMargin;
+  if (SETTINGS.statusBarSpec().atTop) orientedMarginTop += statusBarTopReserve();
   orientedMarginLeft += SETTINGS.screenMargin;
   auto selector = makeUniqueNoThrow<EpubReaderFootnoteSelectActivity>(renderer, mappedInput, std::move(page),
                                                                       orientedMarginLeft, orientedMarginTop);
@@ -1764,8 +1765,12 @@ void EpubReaderActivity::renderBook() {
 
   const uint8_t statusBarHeight = UITheme::getReaderStatusBarHeight();
 
-  if (automaticPageTurnActive &&
-      (statusBarHeight == 0 || statusBarHeight == UITheme::getInstance().getProgressBarHeight())) {
+  if (SETTINGS.statusBarSpec().atTop) {
+    // Status bar above the page: its lane moves from the bottom margin to the top one.
+    orientedMarginTop += statusBarTopReserve();
+    orientedMarginBottom += SETTINGS.screenMargin;
+  } else if (automaticPageTurnActive &&
+             (statusBarHeight == 0 || statusBarHeight == UITheme::getInstance().getProgressBarHeight())) {
     orientedMarginBottom +=
         SETTINGS.screenMargin + statusBarHeight + UITheme::getInstance().getMetrics().statusBarVerticalMargin;
   } else {
@@ -2613,6 +2618,14 @@ bool EpubReaderActivity::drawClippingHighlights(const Page& page, const int font
   return highlightedWords != 0;
 }
 
+int EpubReaderActivity::statusBarTopReserve() const {
+  const int height = UITheme::getReaderStatusBarHeight();
+  if (automaticPageTurnActive && (height == 0 || height == UITheme::getInstance().getProgressBarHeight())) {
+    return height + UITheme::getInstance().getMetrics().statusBarVerticalMargin;
+  }
+  return height;
+}
+
 void EpubReaderActivity::renderStatusBar() const {
   const int currentPage = section ? section->currentPage + 1 : 1;
   const float pageCount = section ? section->estimatedTotalPages() : 1;
@@ -2652,7 +2665,7 @@ void EpubReaderActivity::renderStatusBar() const {
   }
 
   GUI.drawStatusBar(renderer, bookProgress, currentPage, pageCount, title, 0, textYOffset, true, currentPageBookmarked,
-                    section ? section->isBuilding() : false);
+                    section ? section->isBuilding() : false, sb.atTop);
 }
 
 // ---------------------------------------------------------------------------

@@ -366,6 +366,8 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Enum(StrId::STR_XTC_STATUS_BAR, &CrossPointSettings::xtcStatusBarMode,
                          {StrId::STR_HIDE, StrId::STR_BOTTOM, StrId::STR_TOP}, "xtcStatusBarMode",
                          StrId::STR_CUSTOMISE_STATUS_BAR));
+  emit(SettingInfo::Enum(StrId::STR_STATUS_BAR_POSITION, &CrossPointSettings::statusBarPosition,
+                         {StrId::STR_BOTTOM, StrId::STR_TOP}, "statusBarPosition", StrId::STR_CUSTOMISE_STATUS_BAR));
   // Clock entries (persistence + web settings; the device UI is
   // ClockSettingsActivity under System settings).
   emit(SettingInfo::StaticEnum(StrId::STR_CLOCK, &CrossPointSettings::statusBarClock, STATUS_BAR_CLOCK_VALUES,

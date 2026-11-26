@@ -228,6 +228,8 @@ class EpubReaderActivity final : public ReaderActivity {
   void navigateToHref(const std::string& href, bool savePosition = false);
   void restoreSavedPosition();
 
+  // Height the status bar takes above the page when it is placed at the top.
+  int statusBarTopReserve() const;
   void renderContents(std::unique_ptr<Page> page, int orientedMarginTop, int orientedMarginRight,
                       int orientedMarginBottom, int orientedMarginLeft);
   bool drawClippingHighlights(const Page& page, int fontId, int orientedMarginTop, int orientedMarginLeft) const;

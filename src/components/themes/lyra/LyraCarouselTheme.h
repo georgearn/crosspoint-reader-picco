@@ -23,7 +23,6 @@ class LyraCarouselTheme : public LyraTheme {
                            const int selectorIndex, bool& coverRendered, bool& coverBufferStored, bool& bufferRestored,
                            std::function<bool()> storeCoverBuffer, int progress) const override;
 
-
  private:
   // Stays on the last selected book while the selection is in the menu below,
   // so the carousel does not jump around.

@@ -60,6 +60,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     XTC_STATUS_BAR_MODE_COUNT
   };
 
+  enum STATUS_BAR_POSITION { STATUS_BAR_POSITION_BOTTOM = 0, STATUS_BAR_POSITION_TOP = 1, STATUS_BAR_POSITION_COUNT };
+
   enum STATUS_BAR_CLOCK_MODE {
     STATUS_BAR_CLOCK_HIDE = 0,
     STATUS_BAR_CLOCK_RIGHT = 1,
@@ -272,6 +274,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t statusBarTitle = CHAPTER_TITLE;
   uint8_t statusBarBattery = 1;
   uint8_t xtcStatusBarMode = XTC_STATUS_BAR_HIDE;
+  uint8_t statusBarPosition = STATUS_BAR_POSITION_BOTTOM;  // EPUB reader only
   // Clock display in status bar (any board whose RTC probe succeeds)
   uint8_t statusBarClock = STATUS_BAR_CLOCK_HIDE;
   // LEGACY, kept for migration only: quarter-hour UTC offset biased by 48
@@ -504,6 +507,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     uint8_t progressBarMode = HIDE_PROGRESS;  // STATUS_BAR_PROGRESS_BAR
     uint8_t progressBarHeightPx = 0;          // (thickness+1)*2; 0 when the bar is hidden
     uint8_t xtcMode = XTC_STATUS_BAR_HIDE;    // XTC_STATUS_BAR_MODE
+    bool atTop = false;                       // EPUB reader: bar above the page
 
     bool showsProgressBar() const { return progressBarMode != HIDE_PROGRESS; }
     bool showsTitle() const { return titleMode != HIDE_TITLE; }

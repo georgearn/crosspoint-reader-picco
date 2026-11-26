@@ -862,7 +862,8 @@ void BaseTheme::fillPopupProgress(const GfxRenderer& renderer, const Rect& layou
 
 void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage,
                               const int pageCount, std::string title, const int paddingBottom, const int textYOffset,
-                              const bool fillMargin, const bool isPageBookmarked, const bool pageCountEstimated) {
+                              const bool fillMargin, const bool isPageBookmarked, const bool pageCountEstimated,
+                              const bool atTop) {
   auto metrics = UITheme::getInstance().getMetrics();
   int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
   renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
@@ -874,12 +875,16 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
   const auto screenHeight = renderer.getScreenHeight();
   const int statusBarHeight =
       fillMargin ? UITheme::getReaderStatusBarHeight() : UITheme::getInstance().getStatusBarHeight();
-  auto textY =
-      screenHeight - statusBarHeight - orientedMarginBottom - paddingBottom - 4 + BoardConfig::ACTIVE.statusBarOffsetY;
+  // At the top the progress bar hugs the screen edge and the text line sits below it.
+  const int topBarBlock = UITheme::getInstance().getProgressBarHeight();
+  auto textY = atTop ? orientedMarginTop + topBarBlock + 2
+                     : screenHeight - statusBarHeight - orientedMarginBottom - paddingBottom - 4 +
+                           BoardConfig::ACTIVE.statusBarOffsetY;
 
-  // The side clusters sit in the bottom corners: clear the panel's rounded corners too.
-  const int corner = BoardConfig::ACTIVE.bottomCornerRadius != 0 ? BoardConfig::ACTIVE.bottomCornerRadius
-                                                                 : BoardConfig::ACTIVE.cornerRadius;
+  // The side clusters sit in the corners on the status bar's side: clear the panel's rounded corners too.
+  const int corner = atTop ? BoardConfig::ACTIVE.cornerRadius
+                           : (BoardConfig::ACTIVE.bottomCornerRadius != 0 ? BoardConfig::ACTIVE.bottomCornerRadius
+                                                                          : BoardConfig::ACTIVE.cornerRadius);
   const int leftClusterX = metrics.statusBarHorizontalMargin + std::max(orientedMarginLeft, corner) + 1;
   const int rightClusterX =
       renderer.getScreenWidth() - metrics.statusBarHorizontalMargin - std::max(orientedMarginRight, corner);
@@ -924,7 +929,14 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
       // Chapter progress
       progress = (pageCount > 0) ? (static_cast<float>(currentPage) / pageCount) * 100 : 0;
     }
-    if (BoardConfig::isEegoA4() && fillMargin) {
+    if (atTop) {
+      const int barMarginLeft = fillMargin ? 0 : orientedMarginLeft;
+      const int barMarginRight = fillMargin ? 0 : orientedMarginRight;
+      const int progressBarMaxWidth = renderer.getScreenWidth() - barMarginLeft - barMarginRight;
+      const int barWidth = progressBarMaxWidth * progress / 100;
+      // Fills the top inset too, mirroring the bottom bar.
+      renderer.fillRect(barMarginLeft, 0, barWidth, orientedMarginTop + sb.progressBarHeightPx, true);
+    } else if (BoardConfig::isEegoA4() && fillMargin) {
       // EEGO A4: a slim line hugging the bottom bezel instead of a slab filling
       // the bottom inset. Its top row sits edgeGap px above the panel edge and
       // it fills down to the edge, so no gap shows under it at any viewing

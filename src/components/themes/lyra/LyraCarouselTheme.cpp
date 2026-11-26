@@ -23,11 +23,11 @@ constexpr int kCornerRadius = 6;
 // The inner edge (towards the focus) is taller than the outer edge, which is
 // what sells the perspective.
 struct SideGeometry {
-  int gap;       // space between the previous cover's outer edge (or the selection frame) and this one
-  int width;     // projected width
-  int hInner;    // height at the inner edge
-  int hOuter;    // height at the outer edge
-  int fadePct;   // lightening towards white, pushes far covers into the background
+  int gap;      // space between the previous cover's outer edge (or the selection frame) and this one
+  int width;    // projected width
+  int hInner;   // height at the inner edge
+  int hOuter;   // height at the outer edge
+  int fadePct;  // lightening towards white, pushes far covers into the background
 };
 constexpr SideGeometry kSide[LyraCarouselMetrics::kVisibleSideCovers] = {
     {4, 92, 196, 164, 0},
@@ -65,8 +65,8 @@ bool loadCover(const std::string& coverPath, const int thumbHeight, CoverPixels&
         for (int i = 0; i < h && ok; ++i) {
           // Rows arrive in file order; bottom-up BMPs list the last display row first.
           const int row = bitmap.isTopDown() ? i : h - 1 - i;
-          ok = bitmap.readNextRow(pixels.get() + static_cast<size_t>(row) * stride, scratch.get()) ==
-               BmpReaderError::Ok;
+          ok =
+              bitmap.readNextRow(pixels.get() + static_cast<size_t>(row) * stride, scratch.get()) == BmpReaderError::Ok;
         }
         if (ok) {
           out.width = w;
@@ -243,8 +243,8 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
   int y = coverY + coverH + kPad + 2;
 
   const int maxTitleLines = std::max(1, std::min(2, (bottom - y) / std::max(1, titleLineH)));
-  for (const auto& line : renderer.wrappedText(UI_12_FONT_ID, book.title.c_str(), maxTextWidth, maxTitleLines,
-                                               EpdFontFamily::BOLD)) {
+  for (const auto& line :
+       renderer.wrappedText(UI_12_FONT_ID, book.title.c_str(), maxTextWidth, maxTitleLines, EpdFontFamily::BOLD)) {
     const int w = renderer.getTextWidth(UI_12_FONT_ID, line.c_str(), EpdFontFamily::BOLD);
     renderer.drawText(UI_12_FONT_ID, cx - w / 2, y, line.c_str(), true, EpdFontFamily::BOLD);
     y += titleLineH;
