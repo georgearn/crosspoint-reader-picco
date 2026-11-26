@@ -24,6 +24,7 @@
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
+#include "components/themes/lyra/LyraCarouselTheme.h"
 #include "fontIds.h"
 #include "util/BookProgress.h"
 
@@ -448,19 +449,20 @@ void HomeActivity::loop() {
   // targets from the drawn covers by content.x on bezel-inset panels (EEGO A4).
   const Rect content = UITheme::getInstance().getContentArea(renderer);
   if (carousel) {
-    // Five equal columns across the tile, centre column = the focused cover: tapping it opens the book,
-    // tapping a side cover brings that book to the centre.
-    const int columns = metrics.homeRecentBooksCount;
-    const int columnWidth = content.width / columns;
-    int column = -1;
-    const auto touch = mappedInput.colTouch(column, content.x, columnWidth, columns, metrics.homeTopPadding,
-                                            metrics.homeTopPadding + metrics.homeCoverTileHeight, columnWidth);
-    if (touch != MappedInputManager::RowTouch::None) {
-      const int target = carouselFocus + (column - columns / 2);
-      if (touch == MappedInputManager::RowTouch::Tap && target >= 0 && target < carouselBooks) {
+    // Tapping the focused cover opens the book; tapping a side cover brings that book to the centre.
+    int tx = 0;
+    int ty = 0;
+    const bool isDown = mappedInput.wasScreenTouchDown(tx, ty);
+    const bool isTap = !isDown && mappedInput.wasScreenTapped(tx, ty);
+    if ((isDown || isTap) && ty >= metrics.homeTopPadding &&
+        ty < metrics.homeTopPadding + metrics.homeCoverTileHeight && tx >= content.x &&
+        tx < content.x + content.width) {
+      const int step = LyraCarouselMetrics::coverStepAt(tx - (content.x + content.width / 2), content.width);
+      const int target = carouselFocus + step;
+      if (isTap && target >= 0 && target < carouselBooks) {
         haptic_feedback::touchAction();
         selectorIndex = target;
-        if (column == columns / 2) {
+        if (step == 0) {
           activateSelection();
         } else {
           carouselFocus = target;
@@ -494,6 +496,27 @@ void HomeActivity::loop() {
   const int menuTop = metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.homeMenuTopOffset;
   const int renderedMenuCount =
       menuCount - (metrics.homeContinueReadingInMenu ? 0 : static_cast<int>(recentBooks.size()));
+  if (SETTINGS.uiTheme == CrossPointSettings::LYRA_CAROUSEL && renderedMenuCount > 0) {
+    // Carousel menu is one horizontal icon row: equal columns across the content width.
+    const int cellWidth = content.width / renderedMenuCount;
+    int menuCol = -1;
+    const auto menuColTouch = mappedInput.colTouch(menuCol, content.x, cellWidth, renderedMenuCount, menuTop,
+                                                   menuTop + LyraCarouselMetrics::kMenuRowHeight, cellWidth);
+    if (menuColTouch != MappedInputManager::RowTouch::None) {
+      const int touchedIndex = menuCol + static_cast<int>(recentBooks.size());
+      if (menuColTouch == MappedInputManager::RowTouch::Down) {
+        if (selectorIndex != touchedIndex) {
+          selectorIndex = touchedIndex;
+          requestUpdate();
+        }
+      } else {
+        selectorIndex = touchedIndex;
+        haptic_feedback::touchAction();
+        activateSelection();
+      }
+      return;
+    }
+  }
   int menuRow = -1;
   // Row height from the theme, not the metrics table: RoundedRaff draws
   // font-derived rows and the touch grid must match the visuals exactly.
@@ -620,8 +643,11 @@ void HomeActivity::render(RenderLock&&) {
       [&menuItems](int index) { return std::string(menuItems[index]); },
       [&menuIcons](int index) { return menuIcons[index]; });
 
-  const auto labels = mappedInput.mapLabels(recentBooks.empty() ? "" : tr(STR_RESUME), tr(STR_SELECT), tr(STR_DIR_UP),
-                                            tr(STR_DIR_DOWN));
+  // The carousel's menu is a horizontal row, so its step buttons read Left/Right.
+  const bool horizontalMenu = SETTINGS.uiTheme == CrossPointSettings::LYRA_CAROUSEL;
+  const auto labels = mappedInput.mapLabels(recentBooks.empty() ? "" : tr(STR_RESUME), tr(STR_SELECT),
+                                            horizontalMenu ? tr(STR_DIR_LEFT) : tr(STR_DIR_UP),
+                                            horizontalMenu ? tr(STR_DIR_RIGHT) : tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
   renderer.displayBuffer(cleanInitialRefresh && !firstRenderDone ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);

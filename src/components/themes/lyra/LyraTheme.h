@@ -99,4 +99,7 @@ class LyraTheme : public BaseTheme {
                            std::function<bool()> storeCoverBuffer, int progress) const override;
   void drawEmptyRecents(const GfxRenderer& renderer, const Rect rect) const;
   bool showsFileIcons() const override { return true; }
+
+  // Bitmap for a menu icon (nullptr if none); shared with derived themes.
+  static const uint8_t* menuIconBitmap(UIIcon icon);
 };

@@ -16,7 +16,7 @@
 #include "fontIds.h"
 
 namespace {
-constexpr int kPad = 8;  // frame around the focused cover, same as Lyra's selection padding
+constexpr int kPad = LyraCarouselMetrics::kFramePad;  // frame around the focused cover
 constexpr int kCornerRadius = 6;
 
 // Fan geometry of one side cover, counted outwards from the focused cover.
@@ -28,10 +28,6 @@ struct SideGeometry {
   int hInner;   // height at the inner edge
   int hOuter;   // height at the outer edge
   int fadePct;  // lightening towards white, pushes far covers into the background
-};
-constexpr SideGeometry kSide[LyraCarouselMetrics::kVisibleSideCovers] = {
-    {4, 92, 196, 164, 0},
-    {4, 58, 160, 128, 30},
 };
 
 // Decoded cover thumb, 2 bits per pixel (0 = black .. 3 = white).
@@ -155,7 +151,7 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
   const int coverW = coverH * 3 / 5;  // the 0.6 aspect slot Lyra uses for thumbs
   const int cx = rect.x + rect.width / 2;
   const int coverX = cx - coverW / 2;
-  const int coverY = rect.y + kPad;
+  const int coverY = rect.y + LyraCarouselMetrics::kTitleBlock + kPad;
 
   if (selectorIndex >= 0 && selectorIndex < bookCount) focusedBook_ = selectorIndex;
   focusedBook_ = std::clamp(focusedBook_, 0, bookCount - 1);
@@ -176,25 +172,31 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
 
     // Side covers, outermost first so nearer ones overlap the farther edge, never the reverse.
     const int yCenter = coverY + coverH / 2;
+    SideGeometry side[LyraCarouselMetrics::kVisibleSideCovers];
+    {
+      // Share the room left of the frame: the near cover gets most of it, the far one tapers to the edge.
+      const int avail = std::max(0, rect.width / 2 - (coverW / 2 + kPad));
+      constexpr int gap = 4;
+      const int usable = std::max(0, avail - 2 * gap);
+      const int nearW = usable * 62 / 100;
+      side[0] = {gap, nearW, coverH * 88 / 100, coverH * 76 / 100, 0};
+      side[1] = {gap, usable - nearW, coverH * 74 / 100, coverH * 62 / 100, 28};
+    }
     for (int step = LyraCarouselMetrics::kVisibleSideCovers; step >= 1; --step) {
       for (const int dir : {-1, 1}) {
         const int idx = focus + dir * step;
         if (idx < 0 || idx >= bookCount) continue;
 
-        // Walk outwards from the selection frame, one cover at a time, to find where this one starts.
-        int pos = dir > 0 ? coverX + coverW + kPad : coverX - kPad;
+        const SideGeometry& g = side[step - 1];
+        // Covers sit edge to edge outwards from the selection frame.
         int xStart = 0;
-        for (int s = 1; s <= step; ++s) {
-          const SideGeometry& sg = kSide[s - 1];
-          if (dir > 0) {
-            xStart = pos + sg.gap;
-            pos = xStart + sg.width;
-          } else {
-            xStart = pos - sg.gap - sg.width;
-            pos = xStart;
-          }
+        if (dir > 0) {
+          xStart = coverX + coverW + kPad + side[0].gap;
+          if (step == 2) xStart += side[0].width + side[1].gap;
+        } else {
+          xStart = coverX - kPad - side[0].gap - side[0].width;
+          if (step == 2) xStart -= side[1].gap + side[1].width;
         }
-        const SideGeometry& g = kSide[step - 1];
         CoverPixels px;
         const bool hasPixels = loadCover(recentBooks[idx].coverBmpPath, coverH, px);
         drawSideCover(renderer, hasPixels ? &px : nullptr, xStart, dir > 0, yCenter, g, coverW, coverH);
@@ -227,27 +229,43 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
   if (selected) {
     const int boxX = coverX - kPad;
     const int boxW = coverW + 2 * kPad;
-    renderer.fillRoundedRect(boxX, rect.y, boxW, kPad, kCornerRadius, true, true, false, false, Color::LightGray);
+    renderer.fillRoundedRect(boxX, coverY - kPad, boxW, kPad, kCornerRadius, true, true, false, false,
+                             Color::LightGray);
     renderer.fillRectDither(boxX, coverY, kPad, coverH, Color::LightGray);
     renderer.fillRectDither(boxX + boxW - kPad, coverY, kPad, coverH, Color::LightGray);
     renderer.fillRoundedRect(boxX, coverY + coverH, boxW, kPad, kCornerRadius, false, false, true, true,
                              Color::LightGray);
   }
 
-  // Title and author/progress under the focused cover; always inside the snapshot rect.
+  // Title above the focused cover, page dots and author/progress below it.
   const RecentBook& book = recentBooks[focus];
   const int maxTextWidth = rect.width - 2 * LyraCarouselMetrics::values.contentSidePadding;
   const int titleLineH = renderer.getLineHeight(UI_12_FONT_ID);
   const int smallLineH = renderer.getLineHeight(UI_10_FONT_ID);
   const int bottom = rect.y + rect.height;
-  int y = coverY + coverH + kPad + 2;
 
-  const int maxTitleLines = std::max(1, std::min(2, (bottom - y) / std::max(1, titleLineH)));
-  for (const auto& line :
-       renderer.wrappedText(UI_12_FONT_ID, book.title.c_str(), maxTextWidth, maxTitleLines, EpdFontFamily::BOLD)) {
+  const int maxTitleLines = std::max(1, std::min(2, LyraCarouselMetrics::kTitleBlock / std::max(1, titleLineH)));
+  const auto titleLines =
+      renderer.wrappedText(UI_12_FONT_ID, book.title.c_str(), maxTextWidth, maxTitleLines, EpdFontFamily::BOLD);
+  // Bottom-aligned so a one-line title stays next to the cover.
+  int y = rect.y + LyraCarouselMetrics::kTitleBlock - static_cast<int>(titleLines.size()) * titleLineH;
+  for (const auto& line : titleLines) {
     const int w = renderer.getTextWidth(UI_12_FONT_ID, line.c_str(), EpdFontFamily::BOLD);
     renderer.drawText(UI_12_FONT_ID, cx - w / 2, y, line.c_str(), true, EpdFontFamily::BOLD);
     y += titleLineH;
+  }
+
+  // One dot per book, the focused one filled.
+  constexpr int dotSpacing = 14;
+  const int dotsY = coverY + coverH + kPad + 8;
+  const int dotsLeft = cx - (bookCount - 1) * dotSpacing / 2;
+  for (int i = 0; i < bookCount; ++i) {
+    const int dx = dotsLeft + i * dotSpacing;
+    if (i == focus) {
+      renderer.fillRect(dx - 3, dotsY - 3, 7, 7, true);
+    } else {
+      renderer.drawRect(dx - 2, dotsY - 2, 5, 5, true);
+    }
   }
 
   std::string sub = book.author;
@@ -256,9 +274,36 @@ void LyraCarouselTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect,
     snprintf(pct, sizeof(pct), "%d%%", progress);
     sub = sub.empty() ? std::string(pct) : sub + " - " + pct;
   }
-  if (!sub.empty() && y + smallLineH <= bottom) {
+  const int subY = coverY + coverH + kPad + LyraCarouselMetrics::kDotsBlock;
+  if (!sub.empty() && subY + smallLineH <= bottom) {
     const std::string fitted = renderer.truncatedText(UI_10_FONT_ID, sub.c_str(), maxTextWidth);
     const int w = renderer.getTextWidth(UI_10_FONT_ID, fitted.c_str());
-    renderer.drawText(UI_10_FONT_ID, cx - w / 2, y + 2, fitted.c_str(), true);
+    renderer.drawText(UI_10_FONT_ID, cx - w / 2, subY, fitted.c_str(), true);
+  }
+}
+
+void LyraCarouselTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
+                                       const std::function<std::string(int index)>& buttonLabel,
+                                       const std::function<UIIcon(int index)>& rowIcon) const {
+  if (buttonCount <= 0) return;
+  constexpr int iconSize = 32;
+  const int cellW = rect.width / buttonCount;
+  const int rowH = LyraCarouselMetrics::kMenuRowHeight;
+  const int labelH = renderer.getLineHeight(SMALL_FONT_ID);
+  for (int i = 0; i < buttonCount; ++i) {
+    const int cellX = rect.x + i * cellW;
+    if (i == selectedIndex) {
+      renderer.fillRoundedRect(cellX + 2, rect.y, cellW - 4, rowH, kCornerRadius, Color::LightGray);
+    }
+    const int blockH = iconSize + 6 + labelH;
+    const int top = rect.y + (rowH - blockH) / 2;
+    if (rowIcon != nullptr) {
+      if (const uint8_t* bitmap = menuIconBitmap(rowIcon(i))) {
+        renderer.drawIcon(bitmap, cellX + (cellW - iconSize) / 2, top, iconSize);
+      }
+    }
+    const std::string label = renderer.truncatedText(SMALL_FONT_ID, buttonLabel(i).c_str(), cellW - 6);
+    const int w = renderer.getTextWidth(SMALL_FONT_ID, label.c_str());
+    renderer.drawText(SMALL_FONT_ID, cellX + (cellW - w) / 2, top + iconSize + 6, label.c_str(), true);
   }
 }
