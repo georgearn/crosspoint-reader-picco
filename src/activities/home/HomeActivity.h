@@ -14,6 +14,8 @@ class HomeActivity final : public Activity {
   std::unique_ptr<CoverGridHomeUi> coverGridUi;
   ButtonNavigator buttonNavigator;
   int selectorIndex = 0;
+  // Lyra Carousel: book shown centered; keeps its value while the menu below is selected.
+  int carouselFocus = 0;
   bool recentsLoading = false;
   bool recentsLoaded = false;
   bool firstRenderDone = false;

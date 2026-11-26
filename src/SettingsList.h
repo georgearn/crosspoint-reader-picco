@@ -281,9 +281,11 @@ inline SettingInfo buildDoublePowerButtonSetting() {
 
 inline std::vector<StrId> homeThemeValues() {
   static constexpr StrId VALUES[] = {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED,
-                                     StrId::STR_THEME_ROUNDEDRAFF, StrId::STR_THEME_COVER_GRID};
-  const size_t count = UITheme::supportsCoverGrid() ? std::size(VALUES) : std::size(VALUES) - 1;
-  return {VALUES, VALUES + count};
+                                     StrId::STR_THEME_ROUNDEDRAFF, StrId::STR_THEME_COVER_GRID,
+                                     StrId::STR_THEME_LYRA_CAROUSEL};
+  // Stored value == list index, so Cover Grid keeps its slot even without PSRAM;
+  // UITheme::setTheme() falls back to Lyra there.
+  return {std::begin(VALUES), std::end(VALUES)};
 }
 
 using SettingVisitor = void (*)(void* context, SettingInfo& info);

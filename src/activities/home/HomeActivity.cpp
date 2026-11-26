@@ -257,7 +257,8 @@ void HomeActivity::onEnter() {
                                                             : CoverGridHomeUi::SlotTab::NONE,
                        hasContinueReading);
   } else if (hasContinueReading &&
-             (SETTINGS.uiTheme == CrossPointSettings::LYRA || SETTINGS.uiTheme == CrossPointSettings::COVER_GRID)) {
+             (SETTINGS.uiTheme == CrossPointSettings::LYRA || SETTINGS.uiTheme == CrossPointSettings::COVER_GRID ||
+              SETTINGS.uiTheme == CrossPointSettings::LYRA_CAROUSEL)) {
     continueReadingProgress = loadBookProgress(recentBooks.front().path);
   }
 
@@ -362,7 +363,25 @@ void HomeActivity::loop() {
     });
   }
 
-  const auto swipe = mappedInput.wasSwipe();
+  const bool carousel = SETTINGS.uiTheme == CrossPointSettings::LYRA_CAROUSEL && !recentBooks.empty();
+  const int carouselBooks = static_cast<int>(recentBooks.size());
+  if (carousel && selectorIndex < carouselBooks) carouselFocus = selectorIndex;
+  carouselFocus = std::clamp(carouselFocus, 0, std::max(0, carouselBooks - 1));
+
+  int swipeStartX = 0;
+  int swipeStartY = 0;
+  const auto swipe = mappedInput.wasSwipe(&swipeStartX, &swipeStartY);
+  if (carousel && (swipe == MappedInputManager::SwipeDir::Left || swipe == MappedInputManager::SwipeDir::Right) &&
+      swipeStartY >= metrics.homeTopPadding && swipeStartY < metrics.homeTopPadding + metrics.homeCoverTileHeight) {
+    // Swipe left brings the next cover in, swipe right the previous one.
+    const int target = carouselFocus + (swipe == MappedInputManager::SwipeDir::Left ? 1 : -1);
+    if (target >= 0 && target < carouselBooks) {
+      selectorIndex = target;
+      carouselFocus = target;
+      requestUpdate();
+    }
+    return;
+  }
   if (swipe == MappedInputManager::SwipeDir::Up) {
     selectorIndex = ButtonNavigator::nextIndex(selectorIndex, menuCount);
     requestUpdate();
@@ -428,6 +447,29 @@ void HomeActivity::loop() {
   // screen-relative getScreenWidth()/contentSidePadding here offset the touch
   // targets from the drawn covers by content.x on bezel-inset panels (EEGO A4).
   const Rect content = UITheme::getInstance().getContentArea(renderer);
+  if (carousel) {
+    // Five equal columns across the tile, centre column = the focused cover: tapping it opens the book,
+    // tapping a side cover brings that book to the centre.
+    const int columns = metrics.homeRecentBooksCount;
+    const int columnWidth = content.width / columns;
+    int column = -1;
+    const auto touch = mappedInput.colTouch(column, content.x, columnWidth, columns, metrics.homeTopPadding,
+                                            metrics.homeTopPadding + metrics.homeCoverTileHeight, columnWidth);
+    if (touch != MappedInputManager::RowTouch::None) {
+      const int target = carouselFocus + (column - columns / 2);
+      if (touch == MappedInputManager::RowTouch::Tap && target >= 0 && target < carouselBooks) {
+        haptic_feedback::touchAction();
+        selectorIndex = target;
+        if (column == columns / 2) {
+          activateSelection();
+        } else {
+          carouselFocus = target;
+          requestUpdate();
+        }
+      }
+      return;
+    }
+  }
   const int coverColumnCount = std::max(1, metrics.homeRecentBooksCount);
   const int recentCount = std::min(static_cast<int>(recentBooks.size()), coverColumnCount);
   const int coverColumnWidth = (content.width - 2 * metrics.contentSidePadding) / coverColumnCount;
