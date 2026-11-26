@@ -663,6 +663,13 @@ bool Epub::loadMetadata(std::string& title, std::string& author) {
 
   if (Txt::isTxtOrMd(filepath)) {
     title = utf8ComposeNfc(FsHelpers::getFileNameWithoutExtension(filepath));
+    if (!Txt::isFb2(filepath)) return true;
+    // FB2 titles live in the cache built on first open; until then the file name stands in.
+    auto fb2Cache = makeUniqueNoThrow<BookMetadataCache>(cachePath);
+    if (fb2Cache && fb2Cache->load() && !fb2Cache->coreMetadata.title.empty()) {
+      title = fb2Cache->coreMetadata.title;
+      author = fb2Cache->coreMetadata.author;
+    }
     return true;
   }
 
@@ -966,7 +973,7 @@ bool Epub::generateThumbBmp(int height) const {
 bool Epub::generateThumbBmpFromSource(int height) {
   if (Storage.exists(getThumbBmpPath(height).c_str())) return true;
   if (Txt::isTxtOrMd(filepath)) {
-    std::string companionCover = Txt::findCompanionCoverImage(filepath);
+    std::string companionCover = Txt::findCoverImage(filepath, cachePath);
     if (companionCover.empty()) return false;
     setupCacheDir();
     return generateThumbBmpForCover(height, companionCover);

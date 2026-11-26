@@ -12,10 +12,21 @@
 
 #include <cstring>
 
+#include "Fb2.h"
 #include "TxtToHtml.h"
 
 bool Txt::isTxtOrMd(std::string_view path) {
-  return FsHelpers::hasTxtExtension(path) || FsHelpers::hasMarkdownExtension(path);
+  return FsHelpers::hasTxtExtension(path) || FsHelpers::hasMarkdownExtension(path) || FsHelpers::hasFb2Extension(path);
+}
+
+bool Txt::isFb2(std::string_view path) { return FsHelpers::hasFb2Extension(path); }
+
+std::string Txt::findCoverImage(const std::string& filepath, const std::string& cachePath) {
+  if (isFb2(filepath)) {
+    std::string cached = Fb2::findCachedCover(cachePath);
+    if (!cached.empty()) return cached;
+  }
+  return findCompanionCoverImage(filepath);
 }
 
 std::string Txt::findCompanionCoverImage(const std::string& filepath) {
@@ -95,6 +106,7 @@ bool Txt::convertCoverImageToBmp(const std::string& imagePath, const std::string
 }
 
 bool Txt::streamTxtToHtml(const std::string& filepath, Print& out) {
+  if (isFb2(filepath)) return Fb2::streamHtml(filepath, TxtToHtml::cacheVersionTag(filepath), out);
   const uint32_t t0 = millis();
   HalFile src;
   if (!Storage.openFileForRead("TXT", filepath, src)) {
@@ -174,6 +186,13 @@ bool Txt::buildTxtCache(const std::string& filepath, const std::string& cachePat
     invalidateCache(cachePath);
   }
 
+  // FB2 carries its title, author, chapters and cover inside the file.
+  Fb2::Info fb2;
+  if (isFb2(filepath) && !Fb2::scan(filepath, cachePath, fb2)) {
+    LOG_ERR("TXT", "Could not read FB2: %s", filepath.c_str());
+    return false;
+  }
+
   if (!bookMetadataCache->beginWrite()) {
     LOG_ERR("TXT", "Could not begin writing cache");
     return false;
@@ -197,7 +216,14 @@ bool Txt::buildTxtCache(const std::string& filepath, const std::string& cachePat
   }
 
   std::string title = FsHelpers::getFileNameWithoutExtension(filepath);
-  bookMetadataCache->createTocEntry(title, "content.html", "", 0);
+  if (!fb2.title.empty()) title = fb2.title;
+  if (fb2.toc.empty()) {
+    bookMetadataCache->createTocEntry(title, "content.html", "", 0);
+  } else {
+    for (const auto& item : fb2.toc) {
+      bookMetadataCache->createTocEntry(item.title, "content.html", item.anchor, item.level);
+    }
+  }
 
   if (!bookMetadataCache->endTocPass()) {
     LOG_ERR("TXT", "Could not end writing toc pass");
@@ -211,9 +237,10 @@ bool Txt::buildTxtCache(const std::string& filepath, const std::string& cachePat
 
   BookMetadataCache::BookMetadata bookMetadata;
   bookMetadata.title = utf8ComposeNfc(title);
-  bookMetadata.language = "en";
+  bookMetadata.author = utf8ComposeNfc(fb2.author);
+  bookMetadata.language = fb2.language.empty() ? "en" : fb2.language;
 
-  std::string companionCover = findCompanionCoverImage(filepath);
+  std::string companionCover = fb2.coverPath.empty() ? findCompanionCoverImage(filepath) : fb2.coverPath;
   if (!companionCover.empty()) {
     bookMetadata.coverItemHref = companionCover;
   }

@@ -8,6 +8,7 @@
 #include <cstring>
 
 const char* TxtToHtml::cacheVersionTag(std::string_view filename) {
+  if (FsHelpers::hasFb2Extension(filename)) return "<!-- FB2_CACHE_VERSION: 1 -->";
   return FsHelpers::hasMarkdownExtension(filename) ? "<!-- MD_CACHE_VERSION: 1 -->" : "<!-- TXT_CACHE_VERSION: 1 -->";
 }
 
